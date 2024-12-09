@@ -102,7 +102,7 @@ def run_conversation(config: Config, topic: str, start: int) -> tuple[list[Messa
         print("\n")
 
         # check for consensus
-        if latest_message == "CONSENSUS":
+        if latest_message[-9:] == "CONSENSUS" or latest_message[-10:] == "CONSENSUS.":
             consensus[current_model] = True
 
         # model is done, append the messages
