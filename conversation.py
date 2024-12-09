@@ -9,6 +9,7 @@ from typing import Callable
 
 import requests
 from typedefs import Config, Message
+from colorama import Fore
 
 
 def ask_model(
@@ -38,7 +39,7 @@ def ask_model(
             )
 
         # run through the response stream
-        for line in response.iter_lines(decode_unicode=True, chunk_size=8):
+        for line in response.iter_lines(decode_unicode=True):
             if line:
 
                 try:
@@ -57,7 +58,9 @@ def ask_model(
                     raise e
 
 
-def run_conversation(config: Config, topic: str, start: int) -> tuple[list[Message]]:
+def run_conversation(
+    config: Config, colors: list[str], topic: str, start: int
+) -> tuple[list[Message]]:
     """
     Run the conversation between the two models
     Returns a tuple of messages between the models
@@ -82,15 +85,17 @@ def run_conversation(config: Config, topic: str, start: int) -> tuple[list[Messa
     # begin the loop
     current_model = start
     while not consensus[0] or not consensus[1]:
-        # for _ in range(3):
 
         print(f"{models[current_model]}:")
         latest_message = ""
 
+        # set color
+        print(colors[current_model])
+
         def handle_token(token: str):
             nonlocal latest_message
             latest_message += token
-            print(token, end="")
+            print(token, end="", flush=True)
 
         ask_model(
             config["OLLAMA_URL"],
@@ -99,7 +104,7 @@ def run_conversation(config: Config, topic: str, start: int) -> tuple[list[Messa
             handle_token,
         )
 
-        print("\n")
+        print("\n" + Fore.RESET)  # newline and color reset
 
         # check for consensus
         if latest_message[-9:] == "CONSENSUS" or latest_message[-10:] == "CONSENSUS.":
@@ -117,7 +122,6 @@ def run_conversation(config: Config, topic: str, start: int) -> tuple[list[Messa
 
         # set next model
         current_model = other_model
-        # print(current_model, other_model, conversations)
 
     # while loop over, consensus reached
     return conversations

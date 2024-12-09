@@ -9,8 +9,9 @@ import configparser
 import os
 import random
 
-from typedefs import Config
+from colorama import Fore
 
+from typedefs import Config
 from conversation import run_conversation
 
 
@@ -78,7 +79,10 @@ def main():
     """
     # import config
     cfg = get_config()
-    models = [cfg["MODEL1"], cfg["MODEL2"]]
+    models = [
+        Fore.BLUE + cfg["MODEL1"] + Fore.RESET,
+        Fore.RED + cfg["MODEL2"] + Fore.RESET,
+    ]
 
     # Print intro
     print_intro(models)
@@ -91,7 +95,7 @@ def main():
     print(f"By coin toss, {models[start]} goes first.\n")
 
     # start conversation
-    run_conversation(cfg, topic, start)
+    run_conversation(cfg, [Fore.BLUE, Fore.RED], topic, start)
 
 
 if __name__ == "__main__":
