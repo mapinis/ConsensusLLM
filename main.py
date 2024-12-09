@@ -7,8 +7,11 @@ main.py
 
 import configparser
 import os
+import random
 
 from typedefs import Config
+
+from conversation import run_conversation
 
 
 def get_config(path: str = "./.cfg") -> Config:
@@ -37,7 +40,7 @@ def get_config(path: str = "./.cfg") -> Config:
     return cfg
 
 
-def print_intro(model_1: str, model_2: str):
+def print_intro(models: list[str]):
     """
     Print the introduction
     """
@@ -49,7 +52,7 @@ def print_intro(model_1: str, model_2: str):
     print(f"{{:^{width}}}".format("Using LLMs to reach a consensus"))
     print("\n" + "-" * width + "\n")
 
-    print(f"Today's models are {model_1} and {model_2}.")
+    print(f"Today's models are {models[0]} and {models[1]}.")
     print("You are the moderator and control the topic.\n")
 
 
@@ -75,14 +78,20 @@ def main():
     """
     # import config
     cfg = get_config()
+    models = [cfg["MODEL1"], cfg["MODEL2"]]
 
     # Print intro
-    print_intro(cfg["MODEL1"], cfg["MODEL2"])
+    print_intro(models)
 
     # get topic from user
     topic = get_topic()
 
+    # coin toss
+    start = random.randint(0, 1)
+    print(f"By coin toss, {models[start]} goes first.\n")
+
     # start conversation
+    run_conversation(cfg, topic, start)
 
 
 if __name__ == "__main__":
