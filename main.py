@@ -7,17 +7,8 @@ main.py
 
 import configparser
 import os
-from typing import TypedDict
 
-
-class Config(TypedDict):
-    """
-    Class for the configuration info
-    """
-
-    OLLAMA_ENDPOINT: str
-    MODEL1: str
-    MODEL2: str
+from typedefs import Config
 
 
 def get_config(path: str = "./.cfg") -> Config:
@@ -35,15 +26,13 @@ def get_config(path: str = "./.cfg") -> Config:
     parser.read(path)
 
     cfg: Config = {
-        "OLLAMA_ENDPOINT": parser["default"].get("OLLAMA_ENDPOINT"),
+        "OLLAMA_URL": parser["default"].get("OLLAMA_URL"),
         "MODEL1": parser["default"].get("MODEL1"),
         "MODEL2": parser["default"].get("MODEL2"),
     }
 
     if any(v is None for v in cfg.values()):
-        raise ValueError(
-            "Configuration requires OLLAMA_ENDPOINT, MODEL1, and MODEL2 keys."
-        )
+        raise ValueError("Configuration requires OLLAMA_URL, MODEL1, and MODEL2 keys.")
 
     return cfg
 
