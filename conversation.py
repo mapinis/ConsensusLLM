@@ -8,8 +8,9 @@ import json
 from typing import Callable
 
 import requests
-from typedefs import Config, Message
 from colorama import Fore
+
+from typedefs import Config, Message
 
 
 def ask_model(
@@ -17,10 +18,15 @@ def ask_model(
     model: str,
     conversation: list[Message],
     handle_token: Callable[[str], None],
+    enable_consensus: bool,
+    handle_consensus: Callable[[str], None],
 ):
     """
     Ask Ollama for a chat completion for the given model and with the provided conversation.
-    Response is streamed to handle_token function is used to handle token by token
+    Response is streamed, handle_token function is used to handle token by token
+    Provides a tool for the model to call for consensus with their understanding of what the consensus is
+        if "enable_consensus" is true.
+    This is then used to call handle_consensus
     """
 
     endpoint = ollama_url + "api/chat/"
@@ -29,8 +35,32 @@ def ask_model(
         json={
             "model": model,
             "messages": conversation,
+            "tools": (
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "propose_consensus",
+                            "description": "Propose consensus with your understanding of the consensus after significant conversation working towards agreement.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "summary": {
+                                        "type": "string",
+                                        "description": "If consensus reached, short summary of your understanding of the consensus after long conversation.",
+                                    },
+                                },
+                                "required": ["summary"],
+                            },
+                        },
+                    }
+                ]
+                if enable_consensus
+                else []
+            ),
         },
         stream=True,
+        timeout=1000,
     ) as response:
 
         if response.status_code != 200:
@@ -44,14 +74,21 @@ def ask_model(
 
                 try:
                     data = json.loads(line)  # parse
+                    # print(data)
+                    # check for consensus call
+                    if "tool_calls" in data["message"]:
+                        func = data["message"]["tool_calls"][0]["function"]
+                        if func["name"] == "propose_consensus":
+                            handle_consensus(
+                                func["arguments"]["summary"],
+                            )
+
+                    # append token if present
+                    if data["message"]["content"]:
+                        handle_token(data["message"]["content"])
 
                     if data["done"]:  # check if the stream is done
                         break
-
-                    # else append
-                    handle_token(
-                        data["message"]["content"]
-                    )  # held in "response" for whatever reason
 
                 except Exception as e:
                     print(f"Error parsing response: {line}.")
@@ -82,12 +119,17 @@ def run_conversation(
     # consensus values (both start at false)
     consensus = [False, False]
 
+    # boolean to track if consensus tool is provided, triggers after the word "consensus" is mentioned
+    # TODO: better way to track this?
+    allow_consensus_tool = False
+
     # begin the loop
     current_model = start
     while not consensus[0] or not consensus[1]:
 
         print(f"{models[current_model]}:")
         latest_message = ""
+        other_model = (current_model + 1) % 2
 
         # set color
         print(colors[current_model])
@@ -97,31 +139,54 @@ def run_conversation(
             latest_message += token
             print(token, end="", flush=True)
 
+        def handle_consensus(summary: str):
+            nonlocal consensus
+            nonlocal conversations
+            nonlocal other_model
+
+            if summary:
+                print(
+                    "\n",
+                    colors[current_model] + models[current_model] + Fore.RESET,
+                    "has proposed consensus with summary:",
+                    Fore.GREEN + summary + Fore.RESET,
+                )
+
+                consensus[current_model] = True
+                conversations[other_model].append(
+                    {
+                        "role": "user",
+                        "content": f'MODERATOR: {models[current_model]} has proposed consensus with summary "{summary}". If you agree, use "propose_consensus" tool.',
+                    }
+                )
+
         ask_model(
             config["OLLAMA_URL"],
             models[current_model],
             conversations[current_model],
             handle_token,
+            allow_consensus_tool,
+            handle_consensus,
         )
 
         print("\n" + Fore.RESET)  # newline and color reset
-
-        # check for consensus
-        if latest_message[-9:] == "CONSENSUS" or latest_message[-10:] == "CONSENSUS.":
-            consensus[current_model] = True
 
         # model is done, append the messages
         conversations[current_model].append(
             {"role": "assistant", "content": latest_message}
         )
 
-        other_model = (current_model + 1) % 2
         conversations[other_model].append(
             {"role": "user", "content": f"{models[current_model]}: {latest_message}"}
         )
+
+        # check if consensus tool should be allowed
+        if not allow_consensus_tool and "consensus" in latest_message.lower():
+            allow_consensus_tool = True
 
         # set next model
         current_model = other_model
 
     # while loop over, consensus reached
+    # TODO: summary of consensus screens, maybe return the summaries instead?
     return conversations
