@@ -9,6 +9,7 @@ from typing import Callable
 
 import requests
 from colorama import Fore
+import keyboard
 
 from typedefs import Config, Message
 
@@ -123,6 +124,25 @@ def run_conversation(
     # TODO: better way to track this?
     allow_consensus_tool = False
 
+    # Tracks if the moderator is to interrupt after the most recent message
+    # Allows the use to type anything in as the "MODERATOR"
+    moderator_interrupt = False
+
+    # Add hotkeys
+    def trigger_interrupt():
+        nonlocal moderator_interrupt
+        moderator_interrupt = True
+
+    # interrupt on i
+    keyboard.on_press_key("i", trigger_interrupt)
+
+    def trigger_consensus():
+        nonlocal allow_consensus_tool
+        allow_consensus_tool = True
+
+    # allow consensus on c
+    keyboard.on_press_key("c", trigger_consensus)
+
     # begin the loop
     current_model = start
     while not consensus[0] or not consensus[1]:
@@ -183,6 +203,20 @@ def run_conversation(
         # check if consensus tool should be allowed
         if not allow_consensus_tool and "consensus" in latest_message.lower():
             allow_consensus_tool = True
+
+        # check if the moderator has interrupted
+        if moderator_interrupt:
+            # prompt user for moderator interrupt
+            interruption = input("MODERATOR: ")
+            print()  # empty line for spacing
+
+            # append messages
+            message: Message = {"role": "user", "content": f"MODERATOR: {interruption}"}
+
+            conversations[current_model].append(message)
+            conversations[other_model].append(message)
+
+            moderator_interrupt = False
 
         # set next model
         current_model = other_model
